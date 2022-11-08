@@ -1,0 +1,9 @@
+hydra-core==1.2.0
+loguru==0.6.0
+nltk==3.7
+numpy==1.21.6
+omegaconf==2.2.3
+pandas==1.3.5
+pytorch-lightning==1.7.4
+spacy==3.4.1
+stopwordsiso==0.6.1
