@@ -1,0 +1,14 @@
+data_dir: data
+raw_dir: ${data_dir}/raw
+processed_dir: ${data_dir}/processed
+
+datasets:
+  rm_stopwords: False
+  raw:
+    train: ${raw_dir}/train.csv
+    dev: ${raw_dir}/dev.csv
+    test: ${raw_dir}/test.csv
+  processed:
+    train: ${processed_dir}/processed_train.csv
+    dev: ${processed_dir}/processed_dev.csv
+    test: ${processed_dir}/processed_test.csv
