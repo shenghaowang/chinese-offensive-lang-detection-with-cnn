@@ -1,14 +1,21 @@
 # chinese-offensive-lang-detection-with-cnn
 Pytorch implementation of the CNN for Chinese offensive language detection
 
-## Installation
+## Setup
 Python >3.8 is required.
 
+### Create virtual environment
 ```
 virtualenv coldcnn_env
 source coldcnn_env/bin/activate
 pip install -r requirements.txt
 python -m spacy download zh_core_web_md
+```
+
+### Install the `pre-commit` hooks
+```
+pre-commit install
+pre-commit run --all-files
 ```
 
 ## Preprocess

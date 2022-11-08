@@ -1,11 +1,12 @@
 import re
 from pathlib import Path
 
-import hydra
 import pandas as pd
 from loguru import logger
 from omegaconf import DictConfig, OmegaConf
 from stopwordsiso import stopwords
+
+import hydra
 
 ZH_STOPS = stopwords("zh")
 
@@ -13,7 +14,7 @@ ZH_STOPS = stopwords("zh")
 @hydra.main(version_base=None, config_path="hydra", config_name="config")
 def main(cfg: DictConfig) -> None:
     logger.info(OmegaConf.to_yaml(cfg, resolve=True))
-    
+
     raw_data = cfg.datasets.raw
     processed_data = cfg.datasets.processed
     rm_stops = cfg.datasets.rm_stopwords
@@ -27,11 +28,11 @@ def main(cfg: DictConfig) -> None:
         logger.debug(f"Original text: {text}")
         logger.debug(f"Processed text: {pre_process(text, rm_stops)}")
         logger.debug("\n")
-    
+
     # Create directory for storing the processed data
     output_dir = Path(processed_data.train).parent
     output_dir.mkdir(parents=True, exist_ok=True)
-    
+
     for ds_type in ["train", "dev", "test"]:
         logger.info(f"Process {ds_type} ...")
         df = pd.read_csv(raw_data[ds_type])
@@ -64,10 +65,10 @@ def pre_process(text: str, rm_stops: bool = False) -> str:
     """
     if rm_stops:
         text = rm_stopwords(text)
-    
-    frags = [frag for frag in re.findall(r'[\u4e00-\u9fff]+', text)]
-    
-    return ''.join(frags) if len(frags) > 0 else text
+
+    frags = [frag for frag in re.findall(r"[\u4e00-\u9fff]+", text)]
+
+    return "".join(frags) if len(frags) > 0 else text
 
 
 def rm_stopwords(text: str) -> str:
@@ -83,8 +84,7 @@ def rm_stopwords(text: str) -> str:
     str
         processed text with no stopword
     """
-    return ''.join([char for char in text if char not in ZH_STOPS])
-
+    return "".join([char for char in text if char not in ZH_STOPS])
 
 
 if __name__ == "__main__":
