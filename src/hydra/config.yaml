@@ -3,6 +3,7 @@ raw_dir: ${data_dir}/raw
 processed_dir: ${data_dir}/processed
 
 datasets:
+  rm_stopwords: False
   raw:
     train: ${raw_dir}/train.csv
     dev: ${raw_dir}/dev.csv
