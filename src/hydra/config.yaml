@@ -12,3 +12,9 @@ datasets:
     train: ${processed_dir}/processed_train.csv
     dev: ${processed_dir}/processed_dev.csv
     test: ${processed_dir}/processed_test.csv
+
+features:
+  X_col: processed_text
+  y_col: label
+  max_seq_len: 110
+  batch_size: 32

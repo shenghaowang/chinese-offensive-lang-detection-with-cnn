@@ -1,6 +1,7 @@
 import re
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 from loguru import logger
 from omegaconf import DictConfig, OmegaConf
@@ -23,6 +24,19 @@ def main(cfg: DictConfig) -> None:
     logger.info(f"Training data: {df.shape}")
     logger.debug(f"\n{df.head()}")
 
+    # Check the class distribution
+    logger.info(
+        f"Class distribution of the training data:\n{df['label'].value_counts()}"
+    )
+
+    # Check the length of the comments
+    df["len"] = df["TEXT"].apply(len)
+    logger.info(f"Length of comments:\n{df['len'].describe()}")
+    logger.info(
+        f"95th percentile of the comment length: {np.percentile(df['len'].values, 95)}"
+    )
+
+    # Preview text processing
     logger.debug("Preview the processed text:")
     for text in df["TEXT"][:5]:
         logger.debug(f"Original text: {text}")
