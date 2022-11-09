@@ -13,4 +13,8 @@ datasets:
     dev: ${processed_dir}/processed_dev.csv
     test: ${processed_dir}/processed_test.csv
 
-max_seq_len: 110
+features:
+  X_col: processed_text
+  y_col: label
+  max_seq_len: 110
+  batch_size: 32
