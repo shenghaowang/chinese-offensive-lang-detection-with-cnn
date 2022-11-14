@@ -18,3 +18,8 @@ features:
   y_col: label
   max_seq_len: 110
   batch_size: 32
+  word_vec_dim: 300
+
+model:
+  learning_rate: 0.001
+  max_epochs: 3
