@@ -138,8 +138,11 @@ class ColdDataModule(pl.LightningDataModule):
         # [Batch, sequence_len, word_vec_dim]
         padded_word_vector = pad_sequence(word_vector, batch_first=True)
 
+        # [Batch, channel_size = 1, sequence_len, word_vec_dim]
+        expanded_word_vector = torch.unsqueeze(padded_word_vector, 1)
+
         return {
-            "vectors": padded_word_vector,
+            "vectors": expanded_word_vector,
             "vectors_length": word_vector_length,
             "label": labels,
             "comments": [item["comment"] for item in batch],
