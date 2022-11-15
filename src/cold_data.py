@@ -5,6 +5,8 @@ import pandas as pd
 import pytorch_lightning as pl
 import torch
 import zh_core_web_md
+
+# from loguru import logger
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, Dataset
 
@@ -114,19 +116,20 @@ class ColdDataModule(pl.LightningDataModule):
         # also: retrieve max length per item (sentence) in batch
         # This we need for "pack_padded_sequence"
         # Put list into np.array and then in Tensor, for speed up reasons
-        word_vector, word_vector_length = zip(
-            *[
-                (
-                    torch.Tensor(
-                        np.squeeze(item["vectors"][: self.max_seq_len], axis=0)
-                    ),
-                    len(item["vectors"])
-                    if len(item["vectors"]) < self.max_seq_len
-                    else self.max_seq_len,
-                )
-                for item in batch
-            ]
-        )
+
+        word_vector = [
+            torch.Tensor(np.squeeze(item["vectors"][: self.max_seq_len], axis=0))
+            for item in batch
+        ]
+        # logger.debug(f"word_vector: {word_vector[0].size()}")
+
+        word_vector = [
+            torch.nn.ZeroPad2d((0, 0, 0, self.max_seq_len - len(vec)))(vec)
+            if self.max_seq_len > len(vec)
+            else vec
+            for vec in word_vector
+        ]
+
         # logger.debug(f"word_vector: {len(word_vector)}")
         # logger.debug(f"word_vector: {word_vector[0].size()}")
 
@@ -138,12 +141,12 @@ class ColdDataModule(pl.LightningDataModule):
         # [Batch, sequence_len, word_vec_dim]
         padded_word_vector = pad_sequence(word_vector, batch_first=True)
 
-        # [Batch, channel_size = 1, sequence_len, word_vec_dim]
+        # [Batch, channel_size = 1, max_seq_len, word_vec_dim]
         expanded_word_vector = torch.unsqueeze(padded_word_vector, 1)
 
         return {
             "vectors": expanded_word_vector,
-            "vectors_length": word_vector_length,
+            # "vectors_length": word_vector_length,
             "label": labels,
             "comments": [item["comment"] for item in batch],
         }
