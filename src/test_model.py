@@ -1,10 +1,10 @@
 import torch
 from loguru import logger
 from omegaconf import DictConfig
+from torchsummary import summary
 
 import hydra
-
-# from cold_cnn import ColdCNN
+from cold_cnn import ColdCNN
 from cold_data import ColdDataModule, ColdVectorizer, load_data
 
 
@@ -41,10 +41,21 @@ def main(cfg: DictConfig):
     logger.info(f"Batch data for training: {local_vectors.size()}")
     logger.info(f"Batch labels for training: {local_labels.size()}")
 
-    cnn_out = torch.nn.Conv2d(
-        in_channels=1, out_channels=6, kernel_size=(3, 300), stride=1
-    )(local_vectors)
-    logger.info(f"cnn_output: {cnn_out.data.size()}")
+    model = ColdCNN(cfg.model, cfg.features.max_seq_len)
+    # cnn_out = model.conv(local_vectors)
+    # logger.info(f"cnn_output: {cnn_out.data.size()}")
+
+    # relu_out = model.relu(cnn_out)
+    # pooling_out = model.pooling(relu_out)
+    # logger.info(f"pooling_out: {pooling_out.data.size()}")
+
+    # flatten_out = model.flatten(pooling_out)
+    # logger.info(f"flatten_out: {flatten_out.data.size()}")
+
+    # fc_out = model.fc(flatten_out)
+    # logger.info(f"fc_out: {fc_out.data.size()}")
+
+    summary(model, (1, cfg.features.max_seq_len, cfg.features.word_vec_dim))
 
 
 if __name__ == "__main__":

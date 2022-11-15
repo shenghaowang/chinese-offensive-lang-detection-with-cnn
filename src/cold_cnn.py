@@ -2,6 +2,7 @@ import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
 import torchmetrics
+from omegaconf import DictConfig
 
 
 class OffensiveLangDetector(pl.LightningModule):
@@ -70,24 +71,41 @@ class OffensiveLangDetector(pl.LightningModule):
 
 
 class ColdCNN(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, hyparams: DictConfig, seq_len: int):
         super(ColdCNN, self).__init__()
 
         self.conv = torch.nn.Conv2d(
-            in_channels=1, out_channels=6, kernel_size=(3, 300), stride=1
+            in_channels=hyparams.in_channels,
+            out_channels=hyparams.out_channels,
+            kernel_size=(hyparams.kernel_height, hyparams.kernel_width),
+            stride=hyparams.cnn_stride,
         )
-        self.relu = torch.nn.ReLU()
-        self.pooling = torch.nn.MaxPool2d(kernel_size=(3, 1), stride=2)
-        self.fc = torch.nn.Linear(1)
-        self.sigmoid = torch.sigmoid()
+        seq_len = self.compute_seq_len(
+            seq_len, hyparams.kernel_height, hyparams.cnn_stride
+        )
 
-    def forward(self, batch, batch_len):
-        packed_input = torch.nn.utils.rnn.pack_padded_sequence(
-            batch, batch_len, batch_first=True, enforce_sorted=True
+        self.relu = torch.nn.ReLU()
+        self.pooling = torch.nn.MaxPool2d(
+            kernel_size=(hyparams.kernel_height, 1), stride=hyparams.pooling_stride
         )
-        x = self.conv(packed_input)
+        seq_len = self.compute_seq_len(
+            seq_len, hyparams.kernel_height, hyparams.pooling_stride
+        )
+
+        self.flatten = torch.nn.Flatten()
+        self.fc = torch.nn.Linear(hyparams.out_channels * seq_len, 1)
+        self.activation = torch.nn.Sigmoid()
+
+    @staticmethod
+    def compute_seq_len(input_height: int, kernel_height: int, stride: int) -> int:
+        return int((input_height - kernel_height) / stride) + 1
+
+    def forward(self, batch):
+
+        x = self.conv(batch)
         x = self.relu(x)
         x = self.pooling(x)
-        x = self.sigmoid(self.fc(x))
+        x = self.flatten(x)
+        x = self.activation(self.fc(x))
 
         return x
