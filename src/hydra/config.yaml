@@ -18,3 +18,16 @@ features:
   y_col: label
   max_seq_len: 110
   batch_size: 32
+  word_vec_dim: 300
+
+model:
+  learning_rate: 0.001
+  max_epochs: 3
+  in_channels: 1
+  out_channels: 12
+  kernel_height: 3
+  kernel_width: ${features.word_vec_dim}
+  cnn_stride: 1
+  pooling_stride: 2
+  dropout: 0.2
+  fc_features: 128
