@@ -112,29 +112,19 @@ class ColdDataModule(pl.LightningDataModule):
         batch.sort(key=lambda x: len(x["vectors"]), reverse=True)
 
         # Separate out the vectors and labels from the batch
-        # set max length of vectors to defined parameter
-        # also: retrieve max length per item (sentence) in batch
-        # This we need for "pack_padded_sequence"
-        # Put list into np.array and then in Tensor, for speed up reasons
-
         word_vector = [
-            torch.Tensor(np.squeeze(item["vectors"][: self.max_seq_len], axis=0))
-            for item in batch
+            torch.Tensor(np.squeeze(item["vectors"], axis=0)) for item in batch
         ]
-        # logger.debug(f"word_vector: {word_vector[0].size()}")
 
+        # Trim sequences to ensure consistent length
         word_vector = [
             torch.nn.ZeroPad2d((0, 0, 0, self.max_seq_len - len(vec)))(vec)
             if self.max_seq_len > len(vec)
-            else vec
+            else vec[: self.max_seq_len, :]
             for vec in word_vector
         ]
 
-        # logger.debug(f"word_vector: {len(word_vector)}")
-        # logger.debug(f"word_vector: {word_vector[0].size()}")
-
         labels = torch.LongTensor(np.array([item["label"] for item in batch]))
-        # logger.debug(f"labels: {labels.size()}")
 
         # Now each pad each vector sequence to the same size
         # This is an implementation 'preference' choice.
