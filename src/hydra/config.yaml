@@ -29,3 +29,5 @@ model:
   kernel_width: ${features.word_vec_dim}
   cnn_stride: 1
   pooling_stride: 2
+  dropout: 0.2
+  fc_features: 128
