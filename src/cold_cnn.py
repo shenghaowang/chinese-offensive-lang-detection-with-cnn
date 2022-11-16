@@ -11,26 +11,26 @@ class OffensiveLangDetector(pl.LightningModule):
 
         self.model = model
         self.learning_rate = learning_rate
-        self.f1 = torchmetrics.F1Score(num_classes=2)
+        self.f1 = torchmetrics.F1Score(multiclass=False)
 
-    def forward(self, x, x_len):
-        return self.model(x, x_len)
+    def forward(self, x):
+        return self.model(x)
 
     def _calculate_loss(self, batch, mode="train"):
-        # Fetch data and transform labels to one-hot vectors
+        # Fetch data and transform labels
         x = batch["vectors"]
-        y = batch["labels"]
+        y = batch["label"].to(torch.float32)
 
         # Perform prediction and calculate loss and F1 score
-        y_hat = self(x)
-        predictions = torch.argmax(y_hat, dim=1)
-        loss = F.cross_entropy(y_hat, y, reduction="mean")
+        y_hat = torch.squeeze(self(x))
+        predictions = y_hat.round()
+        loss = F.binary_cross_entropy(y_hat, y, reduction="mean")
 
         # Logging
         self.log_dict(
             {
                 f"{mode}_loss": loss,
-                f"{mode}_f1": self.f1(predictions, y),
+                f"{mode}_f1": self.f1(predictions, batch["label"]),
             },
             prog_bar=True,
         )
@@ -50,14 +50,14 @@ class OffensiveLangDetector(pl.LightningModule):
 
     def predict_step(self, batch, batch_idx):
         x = batch["vectors"]
-        x_len = batch["vectors_length"]
-        y_hat = self.model(x, x_len)
+        # x_len = batch["vectors_length"]
+        y_hat = self.model(x)
         predictions = torch.argmax(y_hat, dim=1)
 
         return {
             "logits": y_hat,
             "predictions": predictions,
-            "labels": batch["labels"],
+            "label": batch["label"],
             "comments": batch["comments"],
         }
 
@@ -93,7 +93,11 @@ class ColdCNN(torch.nn.Module):
         )
 
         self.flatten = torch.nn.Flatten()
-        self.fc = torch.nn.Linear(hyparams.out_channels * seq_len, 1)
+        self.dropout = torch.nn.Dropout(p=hyparams.dropout)
+        self.fc1 = torch.nn.Linear(
+            hyparams.out_channels * seq_len, hyparams.fc_features
+        )
+        self.fc2 = torch.nn.Linear(hyparams.fc_features, 1)
         self.activation = torch.nn.Sigmoid()
 
     @staticmethod
@@ -106,6 +110,8 @@ class ColdCNN(torch.nn.Module):
         x = self.relu(x)
         x = self.pooling(x)
         x = self.flatten(x)
-        x = self.activation(self.fc(x))
+        x = self.fc1(x)
+        x = self.dropout(x)
+        x = self.fc2(x)
 
-        return x
+        return self.activation(x)
