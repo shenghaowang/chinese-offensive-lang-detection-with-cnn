@@ -1,6 +1,7 @@
 from typing import List, Tuple
 
 import pytorch_lightning as pl
+import torch
 from loguru import logger
 from omegaconf import DictConfig
 
@@ -14,6 +15,8 @@ def main(cfg: DictConfig):
     processed_data = cfg.datasets.processed
     X_col = cfg.features.X_col
     y_col = cfg.features.y_col
+
+    torch.manual_seed(seed=42)
 
     # Load training, validation, and test data
     train_data = load_data(processed_data.train, X_col, y_col)
