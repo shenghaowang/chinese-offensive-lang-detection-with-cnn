@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import List, Tuple
 
 import pytorch_lightning as pl
@@ -35,7 +36,7 @@ def main(cfg: DictConfig):
         train_data=train_data,
         valid_data=valid_data,
         test_data=test_data,
-        # model_file=cfg.model_file,
+        model_file=cfg.model_file,
     )
 
 
@@ -46,7 +47,7 @@ def trainer(
     train_data: List[Tuple],
     valid_data: List[Tuple],
     test_data: List[Tuple],
-    # model_file: str,
+    model_file: str,
 ) -> None:
     # Create a pytorch trainer
     trainer = pl.Trainer(max_epochs=hyparams.max_epochs, check_val_every_n_epoch=1)
@@ -87,11 +88,11 @@ def trainer(
         logger.info(f"Actual Label: {output[1]['label'][i].numpy()}")
 
     # Export fitted model
-    # model_dir = Path(model_file).parent
-    # model_dir.mkdir(parents=True, exist_ok=True)
+    model_dir = Path(model_file).parent
+    model_dir.mkdir(parents=True, exist_ok=True)
 
-    # torch.save(model.state_dict(), model_file)
-    # logger.info(f"ABSA model exported to {model_file}.")
+    torch.save(model.state_dict(), model_file)
+    logger.info(f"COLD model exported to {model_file}.")
 
 
 if __name__ == "__main__":
