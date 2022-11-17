@@ -33,6 +33,12 @@ def main(cfg: DictConfig) -> None:
     df["len"] = df["TEXT"].apply(len)
     logger.info(f"Length of comments:\n{df['len'].describe()}")
     logger.info(
+        f"50th percentile of the comment length: {np.percentile(df['len'].values, 50)}"
+    )
+    logger.info(
+        f"75th percentile of the comment length: {np.percentile(df['len'].values, 75)}"
+    )
+    logger.info(
         f"95th percentile of the comment length: {np.percentile(df['len'].values, 95)}"
     )
 
