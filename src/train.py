@@ -63,23 +63,23 @@ def trainer(
     )
 
     # Instantiate a new model
-    old = OffensiveLangDetector(
+    offensive_lang_detector = OffensiveLangDetector(
         model,
         learning_rate=hyparams.learning_rate,
     )
 
     # Train and validate the model
     trainer.fit(
-        old,
+        offensive_lang_detector,
         data_module.train_dataloader(),
         val_dataloaders=data_module.val_dataloader(),
     )
 
     # Test the model
-    trainer.test(old, data_module.test_dataloader())
+    trainer.test(offensive_lang_detector, data_module.test_dataloader())
 
     # Predict on the same test set to show some output
-    output = trainer.predict(old, data_module.test_dataloader())
+    output = trainer.predict(offensive_lang_detector, data_module.test_dataloader())
 
     for i in range(2):
         logger.info("====================")
@@ -91,7 +91,7 @@ def trainer(
     model_dir = Path(model_file).parent
     model_dir.mkdir(parents=True, exist_ok=True)
 
-    torch.save(model.state_dict(), model_file)
+    torch.save(offensive_lang_detector.state_dict(), model_file)
     logger.info(f"COLD model exported to {model_file}.")
 
 
