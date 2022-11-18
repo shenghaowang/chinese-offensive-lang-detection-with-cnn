@@ -1,7 +1,10 @@
+from typing import List
+
 import pytorch_lightning as pl
 import torch
 from loguru import logger
 from omegaconf import DictConfig
+from sklearn.metrics import f1_score
 
 import hydra
 from cold_cnn import ColdCNN, OffensiveLangDetector
@@ -53,6 +56,24 @@ def main(cfg: DictConfig) -> None:
 
     logger.info(f"First 10 labels: {labels[:10]}")
     logger.info(f"First 10 logits: {logits[:10]}")
+
+    # Search for the optimal threshold
+    search_for_threshold(labels, logits)
+
+
+def search_for_threshold(labels: List[int], logits: List[str]):
+    best_f1 = 0
+    optimal_threshold = 0
+    for i in range(5, 96):
+        threshold = i / 100
+        preds = [1 if logit >= threshold else 0 for logit in logits]
+        f1 = f1_score(labels, preds)
+        if f1 > best_f1:
+            best_f1 = f1
+            optimal_threshold = threshold
+
+    logger.info(f"Optimal threshold = {optimal_threshold} is found.")
+    logger.info(f"Best F1 = {best_f1}")
 
 
 if __name__ == "__main__":
