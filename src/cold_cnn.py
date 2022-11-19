@@ -58,7 +58,6 @@ class OffensiveLangDetector(pl.LightningModule):
 
     def predict_step(self, batch, batch_idx):
         x = batch["vectors"]
-        # x_len = batch["vectors_length"]
         y_hat = self.model(x)
         predictions = torch.argmax(y_hat, dim=1)
 
@@ -71,9 +70,7 @@ class OffensiveLangDetector(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
-        # optimizer = torch.optim.Adam(
-        #     self.parameters(), lr=self.learning_rate, weight_decay=1e-5
-        # )
+
         return optimizer
 
     def on_epoch_start(self):
@@ -105,7 +102,6 @@ class ColdCNN(torch.nn.Module):
                     stride=hyparams.cnn_stride,
                 ),
                 torch.nn.ReLU(),
-                torch.nn.BatchNorm1d(hyparams.out_channels),
                 torch.nn.MaxPool1d(
                     kernel_size=kernel_height, stride=hyparams.pooling_stride
                 ),
@@ -119,7 +115,6 @@ class ColdCNN(torch.nn.Module):
         self.fc1 = torch.nn.Linear(
             hyparams.out_channels * agg_seq_len, hyparams.fc_features
         )
-        self.batch_norm = torch.nn.BatchNorm1d(hyparams.fc_features)
         self.dropout2 = torch.nn.Dropout(p=hyparams.dropouts.p2)
         self.fc2 = torch.nn.Linear(hyparams.fc_features, 1)
         self.activation = torch.nn.Sigmoid()
@@ -138,7 +133,6 @@ class ColdCNN(torch.nn.Module):
         x = self.flatten(x)
         x = self.dropout1(x)
         x = self.fc1(x)
-        x = self.batch_norm(x)
         x = self.dropout2(x)
         x = self.fc2(x)
 

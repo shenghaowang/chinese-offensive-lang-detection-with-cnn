@@ -107,8 +107,6 @@ class ColdDataModule(pl.LightningDataModule):
     def collate_fn(self, batch):
         """Convert the input raw data from the dataset into model input"""
         # Sort batch according to sequence length
-        # This is for "pack_padded_sequence" in LSTM
-        # Order speeds it up.
         batch.sort(key=lambda x: len(x["vectors"]), reverse=True)
 
         # Separate out the vectors and labels from the batch

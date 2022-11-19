@@ -1,15 +1,25 @@
 import re
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from loguru import logger
 from omegaconf import DictConfig, OmegaConf
+from sklearn.model_selection import train_test_split
 from stopwordsiso import stopwords
 
 import hydra
 
 ZH_STOPS = stopwords("zh")
+
+
+@dataclass
+class Cols:
+    raw_text: str = "TEXT"
+    processed_text: str = "processed_text"
+    seq_len: str = "len"
+    label: str = "label"
 
 
 @hydra.main(version_base=None, config_path="hydra", config_name="config")
@@ -30,21 +40,18 @@ def main(cfg: DictConfig) -> None:
     )
 
     # Check the length of the comments
-    df["len"] = df["TEXT"].apply(len)
+    df[Cols.seq_len] = df[Cols.raw_text].apply(len)
     logger.info(f"Length of comments:\n{df['len'].describe()}")
-    logger.info(
-        f"50th percentile of the comment length: {np.percentile(df['len'].values, 50)}"
-    )
-    logger.info(
-        f"75th percentile of the comment length: {np.percentile(df['len'].values, 75)}"
-    )
-    logger.info(
-        f"95th percentile of the comment length: {np.percentile(df['len'].values, 95)}"
-    )
+
+    for percentile in [50, 75, 95]:
+        logger.info(
+            f"{percentile}th percentile of the comment length: "
+            + f"{np.percentile(df[Cols.seq_len].values, percentile)}"
+        )
 
     # Preview text processing
     logger.debug("Preview the processed text:")
-    for text in df["TEXT"][:5]:
+    for text in df[Cols.raw_text][:5]:
         logger.debug(f"Original text: {text}")
         logger.debug(f"Processed text: {pre_process(text, rm_stops)}")
         logger.debug("\n")
@@ -53,19 +60,24 @@ def main(cfg: DictConfig) -> None:
     output_dir = Path(processed_data.train).parent
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    for ds_type in ["train", "dev", "test"]:
-        logger.info(f"Process {ds_type} ...")
-        df = pd.read_csv(raw_data[ds_type])
-        logger.info(f"{len(df)} raw comments loaded from: {raw_data[ds_type]}")
+    # To reduce the chance of data drift, combine the given datasets
+    # and resplit for training, validation, and test
+    combined_df = pd.concat(
+        [pd.read_csv(raw_data[ds_type]) for ds_type in ["train", "dev", "test"]]
+    )
+    combined_df[Cols.processed_text] = combined_df[Cols.raw_text].apply(pre_process)
+    train_df, rest_df = train_test_split(combined_df, test_size=0.3, random_state=42)
+    dev_df, test_df = train_test_split(rest_df, test_size=0.5, random_state=42)
 
-        # Clean the comments
-        df["processed_text"] = df["TEXT"].apply(pre_process)
+    logger.info(f"Volume of training data: {len(train_df)}")
+    logger.info(f"Volume of dev data: {len(dev_df)}")
+    logger.info(f"Volume of test data: {len(test_df)}")
 
-        df = df[df["processed_text"].apply(lambda x: len(x.strip()) > 0)]
-        logger.info(f"{len(df)} comments remain after text cleaning.")
-
-        df[["processed_text", "label"]].to_csv(processed_data[ds_type], index=False)
-        logger.info(f"Processed reviews written to {processed_data[ds_type]}")
+    # Export data
+    required_cols = [Cols.processed_text, Cols.label]
+    write_processed_data(train_df[required_cols], processed_data["train"])
+    write_processed_data(dev_df[required_cols], processed_data["dev"])
+    write_processed_data(test_df[required_cols], processed_data["test"])
 
 
 def pre_process(text: str, rm_stops: bool = False) -> str:
@@ -105,6 +117,24 @@ def rm_stopwords(text: str) -> str:
         processed text with no stopword
     """
     return "".join([char for char in text if char not in ZH_STOPS])
+
+
+def write_processed_data(df: pd.DataFrame, data_dir: str):
+    """Write processed data to local disk
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        processed comment data
+
+        Required fields:
+            - processed_text
+            - label
+
+    data_dir : str
+        local path for exporting the data
+    """
+    df.to_csv(data_dir, index=False)
 
 
 if __name__ == "__main__":
