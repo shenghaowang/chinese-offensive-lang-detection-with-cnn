@@ -26,7 +26,13 @@ class OffensiveLangDetector(pl.LightningModule):
         # Perform prediction and calculate loss and F1 score
         y_hat = torch.squeeze(self(x))
         predictions = y_hat.round()
-        loss = F.binary_cross_entropy(y_hat, y, reduction="mean")
+        cross_entropy_loss = F.binary_cross_entropy(y_hat, y, reduction="mean")
+
+        # Set constraint on the model params of
+        # the last fully connected layer
+        l2_lambda = 0.01
+        fc_params = torch.cat([x.view(-1) for x in self.model.fc2.parameters()])
+        loss = cross_entropy_loss + l2_lambda * torch.norm(fc_params, 2)
 
         # Logging
         self.log_dict(
@@ -65,6 +71,9 @@ class OffensiveLangDetector(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
+        # optimizer = torch.optim.Adam(
+        #     self.parameters(), lr=self.learning_rate, weight_decay=1e-5
+        # )
         return optimizer
 
     def on_epoch_start(self):
@@ -96,6 +105,7 @@ class ColdCNN(torch.nn.Module):
                     stride=hyparams.cnn_stride,
                 ),
                 torch.nn.ReLU(),
+                torch.nn.BatchNorm1d(hyparams.out_channels),
                 torch.nn.MaxPool1d(
                     kernel_size=kernel_height, stride=hyparams.pooling_stride
                 ),
@@ -105,10 +115,12 @@ class ColdCNN(torch.nn.Module):
             setattr(self, module_name, module)
 
         self.flatten = torch.nn.Flatten()
-        self.dropout = torch.nn.Dropout(p=hyparams.dropout)
+        self.dropout1 = torch.nn.Dropout(p=hyparams.dropouts.p1)
         self.fc1 = torch.nn.Linear(
             hyparams.out_channels * agg_seq_len, hyparams.fc_features
         )
+        self.batch_norm = torch.nn.BatchNorm1d(hyparams.fc_features)
+        self.dropout2 = torch.nn.Dropout(p=hyparams.dropouts.p2)
         self.fc2 = torch.nn.Linear(hyparams.fc_features, 1)
         self.activation = torch.nn.Sigmoid()
 
@@ -124,8 +136,10 @@ class ColdCNN(torch.nn.Module):
         ]
         x = torch.cat(conv_maxpool_outputs, axis=2)
         x = self.flatten(x)
+        x = self.dropout1(x)
         x = self.fc1(x)
-        x = self.dropout(x)
+        x = self.batch_norm(x)
+        x = self.dropout2(x)
         x = self.fc2(x)
 
         return self.activation(x)

@@ -32,7 +32,9 @@ model:
   kernel_width: ${features.word_vec_dim}
   cnn_stride: 1
   pooling_stride: 2
-  dropout: 0.2
+  dropouts:
+    p1: 0.2
+    p2: 0.5
   fc_features: 128
 
 model_file: model/cold.model
