@@ -2,6 +2,8 @@ import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
 import torchmetrics
+
+# from loguru import logger
 from omegaconf import DictConfig
 
 
@@ -71,14 +73,15 @@ class OffensiveLangDetector(pl.LightningModule):
 
 
 class ColdCNN(torch.nn.Module):
-    def __init__(self, hyparams: DictConfig, seq_len: int):
+    def __init__(self, hyparams: DictConfig, in_channels: int, seq_len: int):
         super(ColdCNN, self).__init__()
 
         self.kernel_heights = hyparams.kernel_heights
 
         agg_seq_len = 0
         for kernel_height in self.kernel_heights:
-            module_name = f"conv-maxpool-{int(kernel_height)}"
+            module_name = f"conv-maxpool-{kernel_height}"
+
             conv_seq_len = self.compute_seq_len(
                 seq_len, kernel_height, hyparams.cnn_stride
             )
@@ -86,15 +89,15 @@ class ColdCNN(torch.nn.Module):
                 conv_seq_len, kernel_height, hyparams.pooling_stride
             )
             module = torch.nn.Sequential(
-                torch.nn.Conv2d(
-                    in_channels=hyparams.in_channels,
+                torch.nn.Conv1d(
+                    in_channels=in_channels,
                     out_channels=hyparams.out_channels,
-                    kernel_size=(kernel_height, hyparams.kernel_width),
+                    kernel_size=kernel_height,
                     stride=hyparams.cnn_stride,
                 ),
                 torch.nn.ReLU(),
-                torch.nn.MaxPool2d(
-                    kernel_size=(kernel_height, 1), stride=hyparams.pooling_stride
+                torch.nn.MaxPool1d(
+                    kernel_size=kernel_height, stride=hyparams.pooling_stride
                 ),
             )
 

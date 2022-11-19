@@ -126,17 +126,12 @@ class ColdDataModule(pl.LightningDataModule):
 
         labels = torch.LongTensor(np.array([item["label"] for item in batch]))
 
-        # Now each pad each vector sequence to the same size
-        # This is an implementation 'preference' choice.
-        # [Batch, sequence_len, word_vec_dim]
-        padded_word_vector = pad_sequence(word_vector, batch_first=True)
-
-        # [Batch, channel_size = 1, max_seq_len, word_vec_dim]
-        expanded_word_vector = torch.unsqueeze(padded_word_vector, 1)
+        # Pad each vector sequence to the same size
+        # [batch_size, word_vec_dim, sequence_length]
+        padded_word_vector = pad_sequence(word_vector, batch_first=True).transpose(1, 2)
 
         return {
-            "vectors": expanded_word_vector,
-            # "vectors_length": word_vector_length,
+            "vectors": padded_word_vector,
             "label": labels,
             "comments": [item["comment"] for item in batch],
         }

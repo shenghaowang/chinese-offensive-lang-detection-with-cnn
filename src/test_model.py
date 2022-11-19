@@ -41,8 +41,10 @@ def main(cfg: DictConfig):
     logger.info(f"Batch data for training: {local_vectors.size()}")
     logger.info(f"Batch labels for training: {local_labels.size()}")
 
-    model = ColdCNN(cfg.model, cfg.features.max_seq_len)
+    # model = ColdCNN(cfg.model, cfg.features.max_seq_len)
+    model = ColdCNN(cfg.model, cfg.features.word_vec_dim, cfg.features.max_seq_len)
     for kernel_height in cfg.model.kernel_heights:
+
         logger.info(f"Module: cov-maxpool-{kernel_height}")
         out = getattr(model, f"conv-maxpool-{kernel_height}")(local_vectors)
         logger.info(out.data.size())
@@ -60,7 +62,7 @@ def main(cfg: DictConfig):
     # fc_out = model.fc(flatten_out)
     # logger.info(f"fc_out: {fc_out.data.size()}")
 
-    summary(model, (1, cfg.features.max_seq_len, cfg.features.word_vec_dim))
+    summary(model, (cfg.features.word_vec_dim, cfg.features.max_seq_len))
 
 
 if __name__ == "__main__":
