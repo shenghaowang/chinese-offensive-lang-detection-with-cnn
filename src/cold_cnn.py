@@ -2,6 +2,8 @@ import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
 import torchmetrics
+
+# from loguru import logger
 from omegaconf import DictConfig
 
 
@@ -24,7 +26,13 @@ class OffensiveLangDetector(pl.LightningModule):
         # Perform prediction and calculate loss and F1 score
         y_hat = torch.squeeze(self(x))
         predictions = y_hat.round()
-        loss = F.binary_cross_entropy(y_hat, y, reduction="mean")
+        cross_entropy_loss = F.binary_cross_entropy(y_hat, y, reduction="mean")
+
+        # Set constraint on the model params of
+        # the last fully connected layer
+        l2_lambda = 0.01
+        fc_params = torch.cat([x.view(-1) for x in self.model.fc2.parameters()])
+        loss = cross_entropy_loss + l2_lambda * torch.norm(fc_params, 2)
 
         # Logging
         self.log_dict(
@@ -50,7 +58,6 @@ class OffensiveLangDetector(pl.LightningModule):
 
     def predict_step(self, batch, batch_idx):
         x = batch["vectors"]
-        # x_len = batch["vectors_length"]
         y_hat = self.model(x)
         predictions = torch.argmax(y_hat, dim=1)
 
@@ -63,6 +70,7 @@ class OffensiveLangDetector(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
+
         return optimizer
 
     def on_epoch_start(self):
@@ -71,47 +79,61 @@ class OffensiveLangDetector(pl.LightningModule):
 
 
 class ColdCNN(torch.nn.Module):
-    def __init__(self, hyparams: DictConfig, seq_len: int):
+    def __init__(self, hyparams: DictConfig, in_channels: int, seq_len: int):
         super(ColdCNN, self).__init__()
 
-        self.conv = torch.nn.Conv2d(
-            in_channels=hyparams.in_channels,
-            out_channels=hyparams.out_channels,
-            kernel_size=(hyparams.kernel_height, hyparams.kernel_width),
-            stride=hyparams.cnn_stride,
-        )
-        seq_len = self.compute_seq_len(
-            seq_len, hyparams.kernel_height, hyparams.cnn_stride
-        )
+        self.kernel_sizes = hyparams.kernel_sizes
 
-        self.relu = torch.nn.ReLU()
-        self.pooling = torch.nn.MaxPool2d(
-            kernel_size=(hyparams.kernel_height, 1), stride=hyparams.pooling_stride
-        )
-        seq_len = self.compute_seq_len(
-            seq_len, hyparams.kernel_height, hyparams.pooling_stride
-        )
+        agg_seq_len = 0
+        for kernel_size in self.kernel_sizes:
+            module_name = f"conv-maxpool-{kernel_size}"
+
+            conv_seq_len = self.compute_seq_len(
+                seq_len, kernel_size, hyparams.cnn_stride
+            )
+            pooling_seq_len = self.compute_seq_len(
+                conv_seq_len, kernel_size, hyparams.pooling_stride
+            )
+            module = torch.nn.Sequential(
+                torch.nn.Conv1d(
+                    in_channels=in_channels,
+                    out_channels=hyparams.out_channels,
+                    kernel_size=kernel_size,
+                    stride=hyparams.cnn_stride,
+                ),
+                torch.nn.ReLU(),
+                torch.nn.MaxPool1d(
+                    kernel_size=kernel_size, stride=hyparams.pooling_stride
+                ),
+            )
+
+            agg_seq_len += pooling_seq_len
+            setattr(self, module_name, module)
 
         self.flatten = torch.nn.Flatten()
-        self.dropout = torch.nn.Dropout(p=hyparams.dropout)
+        self.dropout1 = torch.nn.Dropout(p=hyparams.dropouts.p1)
         self.fc1 = torch.nn.Linear(
-            hyparams.out_channels * seq_len, hyparams.fc_features
+            hyparams.out_channels * agg_seq_len, hyparams.fc_features
         )
+        self.dropout2 = torch.nn.Dropout(p=hyparams.dropouts.p2)
         self.fc2 = torch.nn.Linear(hyparams.fc_features, 1)
         self.activation = torch.nn.Sigmoid()
 
     @staticmethod
-    def compute_seq_len(input_height: int, kernel_height: int, stride: int) -> int:
-        return int((input_height - kernel_height) / stride) + 1
+    def compute_seq_len(input_height: int, kernel_size: int, stride: int) -> int:
+        return int((input_height - kernel_size) / stride) + 1
 
     def forward(self, batch):
 
-        x = self.conv(batch)
-        x = self.relu(x)
-        x = self.pooling(x)
+        conv_maxpool_outputs = [
+            getattr(self, f"conv-maxpool-{kernel_size}")(batch)
+            for kernel_size in self.kernel_sizes
+        ]
+        x = torch.cat(conv_maxpool_outputs, axis=2)
         x = self.flatten(x)
+        x = self.dropout1(x)
         x = self.fc1(x)
-        x = self.dropout(x)
+        x = self.dropout2(x)
         x = self.fc2(x)
 
         return self.activation(x)

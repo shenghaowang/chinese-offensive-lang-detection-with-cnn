@@ -30,7 +30,11 @@ def main(cfg: DictConfig):
 
     # Initialise ABSA model
     trainer(
-        model=ColdCNN(hyparams=cfg.model, seq_len=cfg.features.max_seq_len),
+        model=ColdCNN(
+            hyparams=cfg.model,
+            in_channels=cfg.features.word_vec_dim,
+            seq_len=cfg.features.max_seq_len,
+        ),
         feature_params=cfg.features,
         hyparams=cfg.model,
         train_data=train_data,
