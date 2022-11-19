@@ -74,28 +74,37 @@ class ColdCNN(torch.nn.Module):
     def __init__(self, hyparams: DictConfig, seq_len: int):
         super(ColdCNN, self).__init__()
 
-        self.conv = torch.nn.Conv2d(
-            in_channels=hyparams.in_channels,
-            out_channels=hyparams.out_channels,
-            kernel_size=(hyparams.kernel_height, hyparams.kernel_width),
-            stride=hyparams.cnn_stride,
-        )
-        seq_len = self.compute_seq_len(
-            seq_len, hyparams.kernel_height, hyparams.cnn_stride
-        )
+        self.kernel_heights = hyparams.kernel_heights
 
-        self.relu = torch.nn.ReLU()
-        self.pooling = torch.nn.MaxPool2d(
-            kernel_size=(hyparams.kernel_height, 1), stride=hyparams.pooling_stride
-        )
-        seq_len = self.compute_seq_len(
-            seq_len, hyparams.kernel_height, hyparams.pooling_stride
-        )
+        agg_seq_len = 0
+        for kernel_height in self.kernel_heights:
+            module_name = f"conv-maxpool-{int(kernel_height)}"
+            conv_seq_len = self.compute_seq_len(
+                seq_len, kernel_height, hyparams.cnn_stride
+            )
+            pooling_seq_len = self.compute_seq_len(
+                conv_seq_len, kernel_height, hyparams.pooling_stride
+            )
+            module = torch.nn.Sequential(
+                torch.nn.Conv2d(
+                    in_channels=hyparams.in_channels,
+                    out_channels=hyparams.out_channels,
+                    kernel_size=(kernel_height, hyparams.kernel_width),
+                    stride=hyparams.cnn_stride,
+                ),
+                torch.nn.ReLU(),
+                torch.nn.MaxPool2d(
+                    kernel_size=(kernel_height, 1), stride=hyparams.pooling_stride
+                ),
+            )
+
+            agg_seq_len += pooling_seq_len
+            setattr(self, module_name, module)
 
         self.flatten = torch.nn.Flatten()
         self.dropout = torch.nn.Dropout(p=hyparams.dropout)
         self.fc1 = torch.nn.Linear(
-            hyparams.out_channels * seq_len, hyparams.fc_features
+            hyparams.out_channels * agg_seq_len, hyparams.fc_features
         )
         self.fc2 = torch.nn.Linear(hyparams.fc_features, 1)
         self.activation = torch.nn.Sigmoid()
@@ -106,9 +115,11 @@ class ColdCNN(torch.nn.Module):
 
     def forward(self, batch):
 
-        x = self.conv(batch)
-        x = self.relu(x)
-        x = self.pooling(x)
+        conv_maxpool_outputs = [
+            getattr(self, f"conv-maxpool-{kernel_height}")(batch)
+            for kernel_height in self.kernel_heights
+        ]
+        x = torch.cat(conv_maxpool_outputs, axis=2)
         x = self.flatten(x)
         x = self.fc1(x)
         x = self.dropout(x)
