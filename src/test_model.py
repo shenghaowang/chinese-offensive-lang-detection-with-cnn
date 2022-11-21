@@ -43,10 +43,10 @@ def main(cfg: DictConfig):
 
     # model = ColdCNN(cfg.model, cfg.features.max_seq_len)
     model = ColdCNN(cfg.model, cfg.features.word_vec_dim, cfg.features.max_seq_len)
-    for kernel_height in cfg.model.kernel_heights:
+    for kernel_size in cfg.model.kernel_sizes:
 
-        logger.info(f"Module: cov-maxpool-{kernel_height}")
-        out = getattr(model, f"conv-maxpool-{kernel_height}")(local_vectors)
+        logger.info(f"Module: cov-maxpool-{kernel_size}")
+        out = getattr(model, f"conv-maxpool-{kernel_size}")(local_vectors)
         logger.info(out.data.size())
 
     # cnn_out = model.conv(local_vectors)
