@@ -44,10 +44,37 @@ class ColdVectorizer:
         """Create word vectors from given comments"""
         self.model = zh_core_web_md.load()
 
-    def vectorize(self, text):
+    def tokenize(self, text: str) -> List[str]:
+        """Tokenize a given sentence into a list of tokens
+
+        Parameters
+        ----------
+        text : str
+            sentence to tokenize
+
+        Returns
+        -------
+        List[str]
+            list of tokens generated from the sentence
         """
-        Given a sentence, tokenize it and returns a list of
+        doc = self.model.make_doc(text)
+        tokens = [token for token in doc]
+
+        return tokens
+
+    def vectorize(self, text: str) -> List[np.ndarray]:
+        """Given a sentence, tokenize it and returns a list of
         pre-trained word vector for each token.
+
+        Parameters
+        ----------
+        text : str
+            sentence to tokenize
+
+        Returns
+        -------
+        List[np.ndarray]
+            list of pretrained word vectors
         """
         doc = self.model.make_doc(text)
         word_vecs = [token.vector for token in doc]

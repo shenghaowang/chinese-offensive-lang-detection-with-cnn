@@ -1,14 +1,16 @@
-from typing import List
+# import random
 
 import pytorch_lightning as pl
 import torch
 from loguru import logger
 from omegaconf import DictConfig
-from sklearn.metrics import f1_score
 
 import hydra
 from cold_cnn import ColdCNN, OffensiveLangDetector
 from cold_data import ColdDataModule, ColdVectorizer, load_data
+from utils import search_for_threshold
+
+SAMPLE_SIZE = 3
 
 
 @hydra.main(version_base=None, config_path="hydra", config_name="config")
@@ -17,12 +19,15 @@ def main(cfg: DictConfig) -> None:
     X_col = cfg.features.X_col
     y_col = cfg.features.y_col
 
-    # Load training data
+    # Load data
     train_data = load_data(processed_data.train, X_col, y_col)
     valid_data = load_data(processed_data.dev, X_col, y_col)
     test_data = load_data(processed_data.test, X_col, y_col)
 
-    # Load fitted ABSA model
+    # Take a sample of test data
+    # test_samples = random.sample(range(len(test_data)), SAMPLE_SIZE)
+
+    # Load fitted COLD model
     model = OffensiveLangDetector(
         model=ColdCNN(hyparams=cfg.model, seq_len=cfg.features.max_seq_len),
         learning_rate=cfg.model.learning_rate,
@@ -59,21 +64,6 @@ def main(cfg: DictConfig) -> None:
 
     # Search for the optimal threshold
     search_for_threshold(labels, logits)
-
-
-def search_for_threshold(labels: List[int], logits: List[str]):
-    best_f1 = 0
-    optimal_threshold = 0
-    for i in range(5, 96):
-        threshold = i / 100
-        preds = [1 if logit >= threshold else 0 for logit in logits]
-        f1 = f1_score(labels, preds)
-        if f1 > best_f1:
-            best_f1 = f1
-            optimal_threshold = threshold
-
-    logger.info(f"Optimal threshold = {optimal_threshold} is found.")
-    logger.info(f"Best F1 = {best_f1}")
 
 
 if __name__ == "__main__":
