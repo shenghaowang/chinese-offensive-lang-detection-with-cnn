@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import torch
@@ -78,7 +78,21 @@ def generate_skip_gram_comments(
     return comments, skipped_tokens
 
 
-def create_tensors_from_dataset(ds: ColdDataset, max_seq_len: int):
+def create_tensors_from_dataset(ds: ColdDataset, max_seq_len: int) -> Dict[str, Any]:
+    """Create torch tensors from dataset for inference
+
+    Parameters
+    ----------
+    ds : ColdDataset
+        synthesized comments data
+    max_seq_len : int
+        max allowed sequence length
+
+    Returns
+    -------
+    Dict[str, Any]
+        word vectors, labels, and synthesized comments
+    """
     # Convert word vectors to tensors
     word_vector = [torch.Tensor(item["vectors"]) for item in ds]
 
