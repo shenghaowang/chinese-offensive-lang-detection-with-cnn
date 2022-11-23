@@ -1,9 +1,22 @@
-from typing import List
+from dataclasses import dataclass
+from typing import List, Tuple
 
+import numpy as np
+import torch
 from loguru import logger
 from sklearn.metrics import f1_score
+from torch.nn.utils.rnn import pad_sequence
 
-from cold_data import ColdVectorizer
+from cold_data import ColdDataset, ColdVectorizer
+
+
+@dataclass
+class Cols:
+    comment: str = "comment"
+    skipped_token: str = "skipped_token"
+    label: str = "label"
+    logit: str = "logit"
+    importance: str = "importance"
 
 
 def search_for_threshold(labels: List[int], logits: List[str]):
@@ -33,27 +46,58 @@ def search_for_threshold(labels: List[int], logits: List[str]):
 
 def generate_skip_gram_comments(
     cold_vectorizer: ColdVectorizer, comment: str
-) -> List[str]:
-    """Generate all possible variant comments with a token skipped
+) -> Tuple[List[str], List[str]]:
+    """_summary_
 
     Parameters
     ----------
+    cold_vectorizer : ColdVectorizer
+        vectorizer
     comment : str
         the original processed comment
 
     Returns
     -------
-    List[str]
-        list of variant comments
+    Tuple[List[str], List[str]]
+        list of variant comments, list of skipped tokens
     """
     all_tokens = cold_vectorizer.tokenize(comment)
+    all_tokens = [token.text for token in all_tokens]
     num_tokens = len(all_tokens)
 
     comments = []
+    skipped_tokens = []
     comments.append(comment)
+    skipped_tokens.append("")  # indicates no skipped token
 
     for i in range(num_tokens):
         skip_gram_tokens = all_tokens[:i] + all_tokens[(i + 1) :]  # noqa: E203
         comments.append("".join(skip_gram_tokens))
+        skipped_tokens.append(all_tokens[i])
 
-    return comments
+    return comments, skipped_tokens
+
+
+def create_tensors_from_dataset(ds: ColdDataset, max_seq_len: int):
+    # Convert word vectors to tensors
+    word_vector = [torch.Tensor(item["vectors"]) for item in ds]
+
+    # Trim sequences to ensure consistent length
+    word_vector = [
+        torch.nn.ZeroPad2d((0, 0, 0, max_seq_len - len(vec)))(vec)
+        if max_seq_len > len(vec)
+        else vec[:max_seq_len, :]
+        for vec in word_vector
+    ]
+
+    labels = torch.LongTensor(np.array([item["label"] for item in ds]))
+
+    # Pad each vector sequence to the same size
+    # [batch_size, word_vec_dim, sequence_length]
+    padded_word_vector = pad_sequence(word_vector, batch_first=True).transpose(1, 2)
+
+    return {
+        "vectors": padded_word_vector,
+        "label": labels,
+        "comments": [item["comment"] for item in ds],
+    }

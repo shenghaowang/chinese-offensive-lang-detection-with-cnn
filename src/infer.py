@@ -1,14 +1,14 @@
-# import random
+import random
 
-import pytorch_lightning as pl
+import pandas as pd
 import torch
 from loguru import logger
 from omegaconf import DictConfig
 
 import hydra
 from cold_cnn import ColdCNN, OffensiveLangDetector
-from cold_data import ColdDataModule, ColdVectorizer, load_data
-from utils import search_for_threshold
+from cold_data import ColdDataset, ColdVectorizer, load_data
+from utils import Cols, create_tensors_from_dataset, generate_skip_gram_comments
 
 SAMPLE_SIZE = 3
 
@@ -19,51 +19,61 @@ def main(cfg: DictConfig) -> None:
     X_col = cfg.features.X_col
     y_col = cfg.features.y_col
 
-    # Load data
-    train_data = load_data(processed_data.train, X_col, y_col)
-    valid_data = load_data(processed_data.dev, X_col, y_col)
+    # Load test data
     test_data = load_data(processed_data.test, X_col, y_col)
 
     # Take a sample of test data
-    # test_samples = random.sample(range(len(test_data)), SAMPLE_SIZE)
+    sample_ids = random.sample(range(len(test_data)), SAMPLE_SIZE)
+    test_samples = [test_data[id] for id in sample_ids]
 
     # Load fitted COLD model
     model = OffensiveLangDetector(
-        model=ColdCNN(hyparams=cfg.model, seq_len=cfg.features.max_seq_len),
+        model=ColdCNN(cfg.model, cfg.features.word_vec_dim, cfg.features.max_seq_len),
         learning_rate=cfg.model.learning_rate,
     )
     model.load_state_dict(torch.load(cfg.model_file))
     model.eval()
 
-    # Make predictions for training data
-    data_module = ColdDataModule(
-        vectorizer=ColdVectorizer(),
-        batch_size=cfg.features.batch_size,
-        max_seq_len=cfg.features.max_seq_len,
-        train_data=train_data,
-        valid_data=valid_data,
-        test_data=test_data,
-    )
-    trainer = pl.Trainer(max_epochs=cfg.model.max_epochs, check_val_every_n_epoch=1)
-    output = trainer.predict(model, data_module.train_dataloader())
+    vectorizer = ColdVectorizer()
 
-    # Collect predicted logits
-    logits = []
-    labels = []
-    for batch_output in output:
-        batch_logits = [logit.item() for logit in batch_output["logits"]]
-        batch_labels = [label.item() for label in batch_output["label"]]
-        logits.extend(batch_logits)
-        labels.extend(batch_labels)
+    torch.manual_seed(seed=42)
 
-    logger.info(f"Number of logits: {len(logits)}")
-    logger.info(f"Number of labels: {len(labels)}")
+    for _, sample in enumerate(test_samples):
 
-    logger.info(f"First 10 labels: {labels[:10]}")
-    logger.info(f"First 10 logits: {logits[:10]}")
+        comment, label = sample
+        logger.info(f"Original comment: {comment}")
+        logger.info(f"Groundtruth label: {label}")
 
-    # Search for the optimal threshold
-    search_for_threshold(labels, logits)
+        # Synthesize permuted comments with one token skipped
+        permuted_comments, skipped_tokens = generate_skip_gram_comments(
+            vectorizer, comment
+        )
+        permuted_data = [(comment, label) for comment in permuted_comments]
+        cold_permuted = ColdDataset(permuted_data, vectorizer)
+
+        output = create_tensors_from_dataset(cold_permuted, cfg.features.max_seq_len)
+        logger.debug(output["vectors"].size())
+
+        with torch.no_grad():
+            logits = model(output["vectors"])
+
+        logits = torch.squeeze(logits).numpy().T
+        logger.info(f"Predicted logit for the original comment: {logits[0]}")
+
+        res = pd.DataFrame(
+            data={
+                Cols.comment: permuted_comments,
+                Cols.skipped_token: skipped_tokens,
+                Cols.label: output["label"].numpy(),
+                Cols.logit: logits,
+            }
+        )
+        res[Cols.importance] = res[Cols.logit].apply(lambda logit: logits[0] - logit)
+
+        # Sort permuted comments by the importance of the skipped tokens
+        sorted_res = res[1:].sort_values(by=Cols.importance, ascending=False)
+
+        logger.info(f"\n{str(sorted_res)}\n")
 
 
 if __name__ == "__main__":
