@@ -44,20 +44,40 @@ class ColdVectorizer:
         """Create word vectors from given comments"""
         self.model = zh_core_web_md.load()
 
-    def vectorize(self, words):
+    def tokenize(self, text: str) -> List[str]:
+        """Tokenize a given sentence into a list of tokens
+
+        Parameters
+        ----------
+        text : str
+            sentence to tokenize
+
+        Returns
+        -------
+        List[str]
+            list of tokens generated from the sentence
         """
-        Given a sentence, tokenize it and returns a list of
+        doc = self.model.make_doc(text)
+        tokens = [token for token in doc]
+
+        return tokens
+
+    def vectorize(self, text: str) -> List[np.ndarray]:
+        """Given a sentence, tokenize it and returns a list of
         pre-trained word vector for each token.
+
+        Parameters
+        ----------
+        text : str
+            sentence to tokenize
+
+        Returns
+        -------
+        List[np.ndarray]
+            list of pretrained word vectors
         """
-
-        word_vecs = []
-
-        # Split on words
-        for _, word in enumerate(words.split()):
-            # Tokenize the words using spacy
-            spacy_doc = self.model.make_doc(word)
-            vec = [token.vector for token in spacy_doc]
-            word_vecs.append(vec)
+        doc = self.model.make_doc(text)
+        word_vecs = [token.vector for token in doc]
 
         return word_vecs
 
@@ -109,10 +129,8 @@ class ColdDataModule(pl.LightningDataModule):
         # Sort batch according to sequence length
         batch.sort(key=lambda x: len(x["vectors"]), reverse=True)
 
-        # Separate out the vectors and labels from the batch
-        word_vector = [
-            torch.Tensor(np.squeeze(item["vectors"], axis=0)) for item in batch
-        ]
+        # Convert word vectors to tensors
+        word_vector = [torch.Tensor(item["vectors"]) for item in batch]
 
         # Trim sequences to ensure consistent length
         word_vector = [
